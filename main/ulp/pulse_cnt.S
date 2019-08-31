@@ -76,6 +76,10 @@ b_state:
 changed_ab:
 	.long 0
 
+	.global decision
+decision:
+	.long 0
+
 	/* Code goes into .text section */
 	.text
 	.global entry
@@ -187,12 +191,18 @@ read_done_b:
 	move r2, b_state
 	st r0, r2, 0
 
+	move r2, r0 //move B to r2 (r0 is used for jump)
+
 	/* Has A or B changed? */
-	and r2, r1, r3
-	and r2, r2, 1 //mask A (A && A')
+	and r0, r1, r3  //r1 is 0 or 1 --> no mask needed
+	//and r0, r0, 1 //mask A (A && A')
+	//nop
 	jumpr b_change, 1, ge //if A == 1 && A' == 1, than has B changed
-	or r2, r1, r3
-	and r2, r2, 1 //mask A (A || A')
+	or r0, r1, r3
+	and r0, r0, 1 //mask A (A || A')
+	move r3, decision
+	st r0, r3, 0
+	move r0, r0
 	//jumpr a_change, 1, ge // A == 1 && A' == 0 or A == 0 && A' == 1
 	jump b_change, eq  // A == 0 && A' == 0
 	/*and r1, r1, 1 // get value of A
@@ -203,22 +213,22 @@ read_done_b:
 	jumpr b_change, 1, lt*/	
 
 a_change:	// if B != 1 than count up
-	move r2, changed_ab
+	move r0, changed_ab
 	move r3, 1
-	st r3, r2, 0
-	or r3, r1, r0 //is A == 0  && B == 0? --> count down
+	st r3, r0, 0
+	or r3, r1, r2 //is A == 0  && B == 0? --> count down
 	jump count_down, eq
-	and r3, r1, r0 //if A == 1 && B == 0 or A == 0 && B == 1
+	and r0, r1, r2 //if A == 1 && B == 0 or A == 0 && B == 1
 	jump count_up, eq
 	jumpr count_down, 1, ge
 
 b_change:   // if A == B than count up
-	move r2, changed_ab
+	move r0, changed_ab
 	move r3, 2
-	st r3, r2, 0
-	and r3, r0, r1 //A == 1 && B == 1?
+	st r3, r0, 0
+	and r0, r2, r1 //A == 1 && B == 1?
 	jumpr count_up, 1, ge
-	or r3, r0, r1 //A == 1 || B == 1
+	or r0, r2, r1 //A == 1 || B == 1
 	jumpr count_up, 1, ge
 	jumpr count_down, 1, lt
 
