@@ -123,6 +123,8 @@ static void update_pulse_count(void)
     printf("A: %d\n", ulp_a_state & UINT16_MAX);
     printf("B: %d\n", ulp_b_state & UINT16_MAX);
     printf("changed: %d\n", ulp_changed_ab & UINT16_MAX);
+    printf("decision was: %d\n", ulp_decision & UINT16_MAX);
 
     ulp_changed_ab = 0;
+    ulp_decision = 4;
 }

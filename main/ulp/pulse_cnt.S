@@ -1,24 +1,3 @@
-/* ULP Example: pulse counting
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-
-   This file contains assembly code which runs on the ULP.
-
-   ULP wakes up to run this code at a certain period, determined by the values
-   in SENS_ULP_CP_SLEEP_CYCx_REG registers. On each wake up, the program checks
-   the input on GPIO0. If the value is different from the previous one, the
-   program "debounces" the input: on the next debounce_max_count wake ups,
-   it expects to see the same value of input.
-   If this condition holds true, the program increments edge_count and starts
-   waiting for input signal polarity to change again.
-   When the edge counter reaches certain value (set by the main program),
-   this program running triggers a wake up from deep sleep.
-*/
-
 /* ULP assembly files are passed through C preprocessor first, so include directives
    and C macros may be used in these files 
  */
@@ -195,23 +174,15 @@ read_done_b:
 
 	/* Has A or B changed? */
 	and r0, r1, r3  //r1 is 0 or 1 --> no mask needed
-	//and r0, r0, 1 //mask A (A && A')
-	//nop
 	jumpr b_change, 1, ge //if A == 1 && A' == 1, than has B changed
 	or r0, r1, r3
 	and r0, r0, 1 //mask A (A || A')
 	move r3, decision
 	st r0, r3, 0
 	move r0, r0
-	//jumpr a_change, 1, ge // A == 1 && A' == 0 or A == 0 && A' == 1
 	jump b_change, eq  // A == 0 && A' == 0
-	/*and r1, r1, 1 // get value of A
-	
-	
-//	add r3, r3, 4
-	and r2, r3, 1 // A has changed
-	jumpr b_change, 1, lt*/	
-
+		
+	/* r1 == A and r2 == B */
 a_change:	// if B != 1 than count up
 	move r0, changed_ab
 	move r3, 1
@@ -229,31 +200,37 @@ b_change:   // if A == B than count up
 	and r0, r2, r1 //A == 1 && B == 1?
 	jumpr count_up, 1, ge
 	or r0, r2, r1 //A == 1 || B == 1
-	jumpr count_up, 1, ge
-	jumpr count_down, 1, lt
+	jumpr count_down, 1, ge
+	jumpr count_up, 1, lt
 
 count_up:
 	move r2, quadrature_counter
 	ld r3, r2, 0
 	add r3, r3, 1
-	st r3, r2, 0
-	sub r3, r3, r3
+	sub r0, r3, r3
 	jump check_values_changed, eq
 count_down:
 	move r2, quadrature_counter
 	ld r3, r2, 0
 	sub r3, r3, 1
-	st r3, r2, 0
 
 	.global check_values_changed
 check_values_changed:
-	move r2, pushed
-	ld r3, r2, 0
-	sub r3, r3, 1
-	jump wake_up, eq
 	move r2, quadrature_counter
-	ld r3, r2, 0
-	add r3, r3, 0
+	ld r0, r2, 0 //load old value
+	st r3, r2, 0 //store new quadrature counter
+	sub r3, r3, r0 //subtract
+	jump check_pushed, eq //jump to check pushed if quadrature not changed
+	and r3, r3, 0
+	jump wake_up, eq //else jump to wakeup
+
+	.global check_pushed
+check_pushed:
+	move r2, pushed
+	ld r0, r2, 0   // r0 contains value of pushed
+	nop
+	jumpr wake_up, 1, ge
+	add r0, r0, 0  // r0 + 0 --> value is in alu
 	jump end, eq /* no push and no quadrature */
 
 	.global wake_up
@@ -261,7 +238,7 @@ wake_up:
 	/* Check if the system can be woken up */
 	READ_RTC_FIELD(RTC_CNTL_LOW_POWER_ST_REG, RTC_CNTL_RDY_FOR_WAKEUP)
 	and r0, r0, 1
-	jump wake_up, eq
+	jump end, eq
 
 	/* Wake up the SoC, end program */
 	wake
